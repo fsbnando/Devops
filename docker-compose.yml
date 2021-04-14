@@ -1,0 +1,68 @@
+version: '3.5'
+services:
+  
+  nginx-proxy:
+    build: ./nginx
+    container_name: dvr-dvo-nginx
+    restart: unless-stopped
+    ports:
+      - '443:443'     # NEXUS
+      - '5000:5000'   # NEXUS
+      - '8882:8882'   # JENKINS
+      - '8883:8883'   # JENKINS
+      - '50000:50000' # JENKINS
+      - '3000:3000'   # GRAFANA
+    expose:
+      - "443"
+      - "5000"
+      - "8882"
+      - "8883"
+      - "50000"
+      - "3000"
+    links:
+      - nexus-repository
+      - jenkins
+      - grafana
+    command: [ nginx, '-g', 'daemon off;' ]
+
+  nexus-repository:
+    image: sonatype/nexus3
+    container_name: dvr-dvo-nexus
+    volumes:
+      - ./data/nexus/nexus-data:/nexus-data
+
+  jenkins:
+    image: 'jenkins/jenkins'
+    container_name: dvr-dvo-jenkins
+    privileged: true
+    restart: unless-stopped
+    environment:
+      - JENKINS_OPTS=--httpPort=8882 --httpsPort=8883
+    volumes:
+      - ./data/jenkins/jenkins-home-data:/var/jenkins_home
+      - ./data/jenkins/jenkins-cnfg-data:/jenkins_config
+      - '/var/run/docker.sock:/var/run/docker.sock'
+      - '/usr/bin/docker:/usr/bin/docker'
+
+  grafana:
+    image: grafana/grafana
+    container_name: dvr-dvo-grafana
+    restart: unless-stopped
+    volumes:
+      # Dados persistentes.
+      # sudo mkdir -p /srv/docker/grafana/data; chown 472:472 /srv/docker/grafana/data
+      - ./data/grafana/srv/docker/grafana/data:/var/lib/grafana
+      - ./data/grafana/etc/timezone:/etc/timezone:ro 
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+    deploy:
+      resources:
+        limits:
+          cpus: '0.70'
+          memory: 512M
+        reservations:
+          cpus: '0.3'
+          memory: 256M
